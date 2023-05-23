@@ -1,26 +1,38 @@
 import torch
 import cv2
 from camera_module import Camera
+from Sort import *
 
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # or yolov5n - yolov5x6, custom
-
+mot_tracker = Sort()
 
 width = 640
 height = 480
 camera = Camera(-1, width, height)
+colours = np.random.rand(32, 3) #used only for display
+
 
 frames = 0
 while True:
 	img = camera.read()
 
 	results = model(img)
+	detections = results.pred[0].cpu().numpy()
 
-	print(results)
+	track_bbs_ids = mot_tracker.update(detections)
 
-	for (x,y,w,h,confidence,label) in results.xyxy[0]:
-		x,y,w,h,confidence,label = int(x), int(y), int(w), int(h), float(confidence), int(label)
-		cv2.rectangle(img, (x, y), (x + w, y + h), (255,0,0), 2)
-	
+	# print(results)
+
+	for i in range(len(track_bbs_ids.tolist())):
+		coords = track_bbs_ids.tolist()[i]
+		x1, y1, x2, y2 = int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])
+		obj_id = int(coords[4])
+		name = "ID: {}".format(obj_id)
+		color = colours[obj_id % len(colours)] * 255
+		cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+		cv2.putText(img, name, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+		
+	print(len(track_bbs_ids.tolist()) == len(detections))
 	cv2.imshow("image", img)
 
 	if cv2.waitKey(1) & 0xFF == ord('q'):
