@@ -6,12 +6,12 @@ import numpy as np
 from pathlib import Path
 
 
-# mot_tracker = DeepOCSORT(
-#   model_weights=Path('mobilenetv2_x1_4_dukemtmcreid.pt'),  # which ReID model to use, when applicable
-#   device='cuda:0',  # 'cpu', 'cuda:0', 'cuda:1', ... 'cuda:N'
-#   fp16=True,  # wether to run the ReID model with half precision or not
-#   det_thresh=0.2  # minimum valid detection confidence
-# )
+mot_tracker = DeepOCSORT(
+  model_weights=Path('mobilenetv2_x1_4_dukemtmcreid.pt'),  # which ReID model to use, when applicable
+  device='cuda:0',  # 'cpu', 'cuda:0', 'cuda:1', ... 'cuda:N'
+  fp16=True,  # wether to run the ReID model with half precision or not
+  det_thresh=0.2  # minimum valid detection confidence
+)
 
 # mot_tracker = StrongSORT(
 #   model_weights=Path('mobilenetv2_x1_4_dukemtmcreid.pt'),  # which ReID model to use, when applicable
@@ -19,9 +19,9 @@ from pathlib import Path
 #   fp16=True,  # wether to run the ReID model with half precision or not
 # )
 
-mot_tracker = OCSORT(
-  det_thresh=0.2  # minimum valid detection confidence
-)
+# mot_tracker = OCSORT(
+#   det_thresh=0.2  # minimum valid detection confidence
+# )
 
 # mot_tracker = BYTETracker(
 # )
