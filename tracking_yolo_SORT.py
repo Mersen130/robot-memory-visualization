@@ -2,6 +2,7 @@ import torch
 import cv2
 from camera_module import Camera
 from recording_module import Recorder
+# from flicker_remover import Flicker_Remover
 from Sort import *
 
 __location__ = os.path.realpath(
@@ -14,6 +15,7 @@ width = 640
 height = 480
 camera = Camera(-1, width, height)
 recorder = Recorder(camera.get_fps(), width, height)
+# flicker_remover = Flicker_Remover()
 colours = np.random.rand(32, 3) #used only for display
 
 
@@ -32,12 +34,13 @@ while True:
 	results = model(frame)
 	detections = results.pred[0].cpu().numpy()
 
-	track_bbs_ids = mot_tracker.update(detections)
+	track_bbs_ids = mot_tracker.update(detections).tolist()
+	# track_bbs_ids = flicker_remover.update(track_bbs_ids)
 
 	print(results)
 
-	for i in range(len(track_bbs_ids.tolist())):
-		box = track_bbs_ids.tolist()[i]
+	for i in range(len(track_bbs_ids)):
+		box = track_bbs_ids[i]
 		x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
 		obj_id = int(box[4])
 		cls_id = int(box[5])

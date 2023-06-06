@@ -1,2 +1,3 @@
-yolov5s.pt
+*.pt
 __pycache__
+recordings

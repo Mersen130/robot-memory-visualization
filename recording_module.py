@@ -10,12 +10,14 @@ class Recorder:
     """
     def __init__(self, fps, width, height) -> None:
         self.known_objs = set()
+        self.last_frame_objs = set()
         self.curr_videowriter = []
         self.frame_dim = (width, height)
 
         self.fps = fps
         self._3_sec_frame_count = int(fps*3)
         self._3_sec_frames = deque(maxlen=self._3_sec_frame_count)
+        self._3_sec_frames_boxes = deque(maxlen=self._3_sec_frame_count)
         self.recording_dir = self.make_newdir()
         self.saver_threads = []
 
@@ -23,20 +25,29 @@ class Recorder:
         self._3_sec_frames.append(frame)
         self.update_writer()
 
+        curr_objs = set()
         for box in boxes:
             x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
             obj_id = int(box[4])
             cls_id = int(box[5])
+        
+            curr_objs.add(obj_id)
+        
+        for obj_id in curr_objs.difference(self.known_objs):  # objs enter
+            self.known_objs.add(obj_id)
+            self.create_writer("id:{}_entry.mp4".format(obj_id), self._3_sec_frame_count-1)
+        
+        for obj_id in self.last_frame_objs.difference(curr_objs):  # objs left
+            self.create_writer("id:{}_left.mp4".format(obj_id), 0)
 
-            if obj_id not in self.known_objs:
-                self.known_objs.add(obj_id)
-                self.create_writer("id:{}.mp4".format(obj_id))
+        self.last_frame_objs = curr_objs
+        self._3_sec_frames_boxes.append(boxes)
 
-    def create_writer(self, filename):
+    def create_writer(self, filename, frame_to_write):
         writer = cv2.VideoWriter(
                     os.path.join(self.recording_dir, filename), 
                     cv2.VideoWriter_fourcc(*'MP4V'), self.fps, self.frame_dim)
-        self.curr_videowriter.append([self._3_sec_frame_count-1, writer])
+        self.curr_videowriter.append([frame_to_write, writer])
     
     def update_writer(self):
         """update countdown timer for each writer, dispatch them if countdown is 0"""
@@ -50,7 +61,6 @@ class Recorder:
                                      args=((curr_videowriter_cpy[i][1], 
                                             self._3_sec_frames.copy())))
                 t.start()
-                
                 self.curr_videowriter.remove(curr_videowriter_cpy[i])
     
     def dispatch_writer(self, writer, frames):
