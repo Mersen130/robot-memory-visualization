@@ -2,7 +2,7 @@ import torch
 import cv2
 from camera_module import Camera
 from recording_module import Recorder
-# from flicker_remover import Flicker_Remover
+from flicker_remover import Flicker_Remover
 from Sort import *
 
 __location__ = os.path.realpath(
@@ -11,21 +11,21 @@ __location__ = os.path.realpath(
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # or yolov5n - yolov5x6, custom
 mot_tracker = Sort()
 
-width = 640
-height = 480
-camera = Camera(-1, width, height)
-recorder = Recorder(camera.get_fps(), width, height)
-# flicker_remover = Flicker_Remover()
-colours = np.random.rand(32, 3) #used only for display
-
-
 id2name = {}
 with open(os.path.join(__location__, 'yolo_classes.txt'), 'r') as file:
     lines = file.readlines()
     for index, line in enumerate(lines):
         name = line.strip()
         id2name[index] = name
-	
+
+width = 640
+height = 480
+camera = Camera(-1, width, height)
+recorder = Recorder(camera.get_fps(), width, height, id2name)
+flicker_remover = Flicker_Remover()
+colours = np.random.rand(32, 3) #used only for display
+
+
 
 frames = 0
 while True:
@@ -35,9 +35,9 @@ while True:
 	detections = results.pred[0].cpu().numpy()
 
 	track_bbs_ids = mot_tracker.update(detections).tolist()
-	# track_bbs_ids = flicker_remover.update(track_bbs_ids)
+	track_bbs_ids = flicker_remover.update(track_bbs_ids)
 
-	print(results)
+	# print(results)
 
 	for i in range(len(track_bbs_ids)):
 		box = track_bbs_ids[i]
