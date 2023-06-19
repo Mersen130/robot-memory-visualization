@@ -48,7 +48,7 @@ while True:
 		name = "{}: {}".format(id2name[cls_id], obj_id)
 		color = colours[obj_id % len(colours)] * 255
 		cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-		cv2.putText(frame, name, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+		cv2.putText(frame, name, (x1, y1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 		
 	recorder.update(frame, track_bbs_ids)
 
