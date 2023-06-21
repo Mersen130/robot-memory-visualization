@@ -81,7 +81,7 @@ class Recorder:
         else:
             if contains_human and not self._human_event_countdown:
                 # human enters scene and previous human job finishes
-                self.start_human_event(frame)
+                self.start_human_event(frame_info)
             else:
                 if self._human_event_countdown:
                     self._human_event_countdown -= 1
@@ -138,12 +138,12 @@ class Recorder:
         
     def continue_human_event(self, frame_info: Frame):
         self.human_frames.append(frame_info.frame)
-        self.objs_during_human(frame_info.curr_objs)
+        self.objs_during_human.append(frame_info.curr_objs)
 
-    def stop_human_event(self, curr_objs, curr_obj2cls, frame=None):
+    def stop_human_event(self, frame_info: Frame):
         self.human_event = False
         if self._human_event_countdown:
-            self._1_sec_frames_after_human.append(frame)
+            self._1_sec_frames_after_human.append(frame_info.frame)
             return
         
         frames = deque()
@@ -158,18 +158,18 @@ class Recorder:
         self._1_sec_frames_before_human = []
         self.objs_during_human.clear()
 
-        for obj_id in curr_objs.difference(self.objs_before_human[0]):
+        for obj_id in frame_info.curr_objs.difference(self.objs_before_human[0]):
             self.known_objs.add(obj_id)
-            if curr_obj2cls[obj_id] == 0: continue
+            if frame_info.curr_obj2cls[obj_id] == 0: continue
             filename = "{} {} id:{} enter H.mp4".format(datetime.datetime.now().strftime("%H:%M:%S"),
-                                                        self.yolo_id2name[curr_obj2cls[obj_id]], obj_id)
+                                                        self.yolo_id2name[frame_info.curr_obj2cls[obj_id]], obj_id)
             # self.id2filenames[obj_id] = filename
             t = threading.Thread(target=self.dispatch_writer, 
                                      args=((filename, 
                                             frames, objs, obj_id)))
             t.start()
         
-        for obj_id in self.objs_before_human[0].difference(curr_objs):
+        for obj_id in self.objs_before_human[0].difference(frame_info.curr_objs):
             if self.obj2cls_before_human[0][obj_id] == 0: continue
             filename = "{} {} id:{} left H.mp4".format(datetime.datetime.now().strftime("%H:%M:%S"),
                                                        self.yolo_id2name[self.obj2cls_before_human[0][obj_id]], obj_id)
@@ -205,13 +205,14 @@ class Recorder:
     def dispatch_writer(self, filename, frames, objs, obj_id):
         """write cached frames to video files, drop recording if obj_id appeared in less than 5 frames"""
         count = 0
+        half_fps = int(0.5*self.fps)
         for _objs in objs:
             if obj_id in _objs:
                 count += 1
-                if count == 5:
+                if count == half_fps:
                     break
         
-        if count < 5:
+        if count < half_fps:
             return  # this recording is probably caused by a glitch
         
         writer = cv2.VideoWriter(
