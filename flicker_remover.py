@@ -1,3 +1,5 @@
+from utilities import parse_box
+
 class Flicker_Remover:
     def __init__(self) -> None:
         self.known_objs = set()
@@ -9,18 +11,11 @@ class Flicker_Remover:
         self.flickered_objid_mapping = {}
 
     def update(self, boxes):
-        print(self.flickered_objid_mapping)
+        # print(self.flickered_objid_mapping)
         self.apply_mapping(boxes)
 
-        curr_objs = set()
-        curr_obj2box = {}
-        for box in boxes:
-            x1, y1, x2, y2, obj_id, cls_id = \
-                int(box[0]), int(box[1]), int(box[2]), int(box[3]), int(box[4]), int(box[5])
-        
-            curr_objs.add(obj_id)
-            curr_obj2box[obj_id] = box
-        
+        curr_objs, _, curr_obj2box = parse_box(boxes)
+
         for obj_id in curr_objs.difference(self.known_objs):  # objs enter
             self.known_objs.add(obj_id)
 
@@ -46,6 +41,19 @@ class Flicker_Remover:
         self.last_frame_boxes, self.second_last_frame_boxes = boxes, self.last_frame_boxes
         return boxes
     
+    def update_human(self, boxes_before_human, boxes_after_human):
+        objs_after, _, objs_after2box = parse_box(boxes_after_human)
+        objs_before, _, objs_before2box = parse_box(boxes_before_human)
+
+        for obj_id in objs_after.difference(objs_before):
+            similar_box = self.get_similar_boxes(boxes_before_human, objs_after2box[obj_id])
+            if similar_box:
+                self.flickered_objid_mapping[obj_id] = similar_box
+                continue
+        
+        self.apply_mapping(boxes_after_human)
+        return boxes_after_human
+    
     def apply_mapping(self, boxes):
         for i in range(len(boxes)):
             obj_id = int(boxes[i][4])
@@ -67,7 +75,6 @@ class Flicker_Remover:
                 continue
 
             iou = self.bb_intersection_over_union(b1, b2)
-            print("curr", iou)
 
             if iou >= self.threshold:
                 return box
@@ -95,3 +102,4 @@ class Flicker_Remover:
         # return the intersection over union value
         return iou
 
+flicker_remover = Flicker_Remover()

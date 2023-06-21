@@ -2,8 +2,10 @@ import torch
 import cv2
 from camera_module import Camera
 from recording_module import Recorder
-from flicker_remover import Flicker_Remover
+from flicker_remover import flicker_remover
 from Sort import *
+
+record_all = True
 
 __location__ = os.path.realpath(
     os.path.join(os.getcwd(), os.path.dirname(__file__)))
@@ -22,12 +24,11 @@ width = 640
 height = 480
 camera = Camera(-1, width, height)
 recorder = Recorder(camera.get_fps(), width, height, id2name)
-flicker_remover = Flicker_Remover()
 colours = np.random.rand(32, 3) #used only for display
 
 
 
-frames = 0
+frames = []
 while True:
 	frame = camera.read()
 
@@ -54,8 +55,16 @@ while True:
 
 	cv2.imshow("image", frame)
 
+	frames.append(frame)
 	if cv2.waitKey(1) & 0xFF == ord('q'):
 		break
+
+if record_all:
+	writer = cv2.VideoWriter("recordings/recording.mp4", 
+			cv2.VideoWriter_fourcc(*'MP4V'), camera.get_fps(), (width, height))
+	for frame in frames:
+		writer.write(frame)
+	writer.release()
 
 cv2.destroyAllWindows() 
 camera.destroy()

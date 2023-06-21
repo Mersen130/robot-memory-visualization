@@ -3,6 +3,8 @@ from collections import deque
 import os
 import threading
 import datetime
+from flicker_remover import flicker_remover
+from utilities import parse_box
 
 CLASS_PERSON = 0
 
@@ -10,10 +12,11 @@ class Frame:
     curr_objs: set
     curr_obj2cls: dict
 
-    def __init__(self, frame, curr_objs, curr_obj2cls) -> None:
+    def __init__(self, frame, curr_objs, curr_obj2cls, boxes) -> None:
         self.frame = frame
         self.curr_objs = curr_objs
         self.curr_obj2cls = curr_obj2cls
+        self.boxes = boxes
 
 class Recorder:
     """
@@ -31,20 +34,23 @@ class Recorder:
         self.fps = int(fps)
         self._3_sec_frame_count = int(fps*3)
         self._3_sec_frames = deque(maxlen=self._3_sec_frame_count)
-        self._3_sec_frames_objs = deque(maxlen=self._3_sec_frame_count)
-        self._1_sec_frames_before_human = []
-        self._1_sec_frames_after_human = []
-        self._1_sec_frames = deque(maxlen=self.fps)
-        self._1_sec_frames_objs = deque(maxlen=self.fps)
-        self._1_sec_frames_objs2cls = deque(maxlen=self.fps)
+        self._3_sec_objs = deque(maxlen=self._3_sec_frame_count)
+        self._2_sec_frames = deque(maxlen=2*self.fps)
+        self._2_sec_objs = deque(maxlen=2*self.fps)
+        self._2_sec_objs2cls = deque(maxlen=2*self.fps)
+        self._2_sec_boxes = deque(maxlen=2*self.fps)
+
+        self._2_sec_frames_before_human = []
+        self._2_sec_objs_before_human = None
+        self._2_sec_obj2cls_before_human = None
+        self._2_sec_boxes_before_human = None
+        self._2_sec_frames_after_human = []
+        self.objs_during_human = []
+        self.human_frames = deque()
 
         self.id2filenames = {}
         self.files_to_remove = []
         self._human_event_countdown = 0
-        self.human_frames = deque()
-        self.objs_before_human = None
-        self.objs_during_human = []
-        self.obj2cls_before_human = None
         self.recording_dir = self.make_newdir()
         self.saver_threads = []
 
@@ -63,10 +69,10 @@ class Recorder:
             curr_objs.add(obj_id)
             curr_obj2cls[obj_id] = cls_id
         
-        frame_info = Frame(frame, curr_objs, curr_obj2cls)
+        frame_info = Frame(frame, curr_objs, curr_obj2cls, boxes)
 
         self.prepare(frame_info)
-        self.update_writer(self._3_sec_frames_objs)
+        self.update_writer(self._3_sec_objs)
 
         self.prepare_human_event(frame_info)
 
@@ -94,7 +100,7 @@ class Recorder:
 
     def prepare(self, frame_info: Frame):
         self._3_sec_frames.append(frame_info.frame)
-        self._3_sec_frames_objs.append(frame_info.curr_objs)
+        self._3_sec_objs.append(frame_info.curr_objs)
 
     def finish_update(self, frame_info: Frame):
         self.last_frame_objs = frame_info.curr_objs
@@ -118,18 +124,20 @@ class Recorder:
             self.create_writer(filename, 1, obj_id)
     
     def prepare_human_event(self, frame_info: Frame):
-        self._1_sec_frames_objs.append(frame_info.curr_objs)
-        self._1_sec_frames_objs2cls.append(frame_info.curr_obj2cls)
-        self._1_sec_frames.append(frame_info.frame)
+        self._2_sec_objs.append(frame_info.curr_objs)
+        self._2_sec_objs2cls.append(frame_info.curr_obj2cls)
+        self._2_sec_frames.append(frame_info.frame)
+        self._2_sec_boxes.append(frame_info.boxes)
     
     def start_human_event(self, frame_info: Frame):
         self.human_event = True
         self.human_frames.append(frame_info.frame)
-        self.objs_before_human = self._1_sec_frames_objs.copy()
-        self.obj2cls_before_human = self._1_sec_frames_objs2cls.copy()
-        self._1_sec_frames_before_human = self._1_sec_frames.copy()
+        self._2_sec_objs_before_human = self._2_sec_objs.copy()
+        self._2_sec_obj2cls_before_human = self._2_sec_objs2cls.copy()
+        self._2_sec_frames_before_human = self._2_sec_frames.copy()
+        self._2_sec_boxes_before_human = self._2_sec_boxes.copy()
 
-        for objs in self._1_sec_frames_objs:
+        for objs in self._2_sec_objs:
             for obj_id in objs:
                 if str(obj_id) + "enter" in self.id2filenames:
                     self.files_to_remove.append(self.id2filenames[str(obj_id) + "enter"])
@@ -143,22 +151,27 @@ class Recorder:
     def stop_human_event(self, frame_info: Frame):
         self.human_event = False
         if self._human_event_countdown:
-            self._1_sec_frames_after_human.append(frame_info.frame)
+            self._2_sec_frames_after_human.append(frame_info.frame)
             return
         
         frames = deque()
-        frames.extend(self._1_sec_frames_before_human)
+        frames.extend(self._2_sec_frames_before_human)
         frames.extend(self.human_frames)
-        frames.extend(self._1_sec_frames_after_human)
+        frames.extend(self._2_sec_frames_after_human)
 
         objs = deque()
-        objs.extend(self.objs_before_human)
+        objs.extend(self._2_sec_objs_before_human)
         objs.extend(self.objs_during_human)
-        self._1_sec_frames_after_human = []
-        self._1_sec_frames_before_human = []
+        self._2_sec_frames_after_human = []
+        self._2_sec_frames_before_human = []
         self.objs_during_human.clear()
 
-        for obj_id in frame_info.curr_objs.difference(self.objs_before_human[0]):
+        # print("before", frame_info.boxes)
+        frame_info.boxes = flicker_remover.update_human(self._2_sec_boxes_before_human[0], frame_info.boxes)
+        frame_info.curr_objs, frame_info.curr_obj2cls, _ = parse_box(frame_info.boxes)
+        # print("after", frame_info.boxes)
+
+        for obj_id in frame_info.curr_objs.difference(self._2_sec_objs_before_human[0]):
             self.known_objs.add(obj_id)
             if frame_info.curr_obj2cls[obj_id] == 0: continue
             filename = "{} {} id:{} enter H.mp4".format(datetime.datetime.now().strftime("%H:%M:%S"),
@@ -169,10 +182,10 @@ class Recorder:
                                             frames, objs, obj_id)))
             t.start()
         
-        for obj_id in self.objs_before_human[0].difference(frame_info.curr_objs):
-            if self.obj2cls_before_human[0][obj_id] == 0: continue
+        for obj_id in self._2_sec_objs_before_human[0].difference(frame_info.curr_objs):
+            if self._2_sec_obj2cls_before_human[0][obj_id] == 0: continue
             filename = "{} {} id:{} left H.mp4".format(datetime.datetime.now().strftime("%H:%M:%S"),
-                                                       self.yolo_id2name[self.obj2cls_before_human[0][obj_id]], obj_id)
+                                                       self.yolo_id2name[self._2_sec_obj2cls_before_human[0][obj_id]], obj_id)
             # self.id2filenames[obj_id] = filename
             t = threading.Thread(target=self.dispatch_writer, 
                                      args=((filename, 
@@ -205,14 +218,14 @@ class Recorder:
     def dispatch_writer(self, filename, frames, objs, obj_id):
         """write cached frames to video files, drop recording if obj_id appeared in less than 5 frames"""
         count = 0
-        half_fps = int(0.5*self.fps)
+        threshold = self.fps
         for _objs in objs:
             if obj_id in _objs:
                 count += 1
-                if count == half_fps:
+                if count == threshold:
                     break
         
-        if count < half_fps:
+        if count < threshold:
             return  # this recording is probably caused by a glitch
         
         writer = cv2.VideoWriter(
@@ -226,7 +239,7 @@ class Recorder:
         """dispatch all writers and do cleaning"""
         for count_down, writer, obj_id in self.curr_videowriter:
             t = threading.Thread(target=self.dispatch_writer, args=((writer, self._3_sec_frames, 
-                                                                     self._3_sec_frames_objs, obj_id)))
+                                                                     self._3_sec_objs, obj_id)))
             t.start()
             self.saver_threads.append(t)
         
