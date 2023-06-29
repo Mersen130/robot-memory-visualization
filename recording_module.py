@@ -22,7 +22,7 @@ class Recorder:
     """
     Record a video when new object appears and left
     """
-    def __init__(self, fps, width, height, yolo_id2name) -> None:
+    def __init__(self, fps, width, height, yolo_id2name, region=None, recording_base_dir="") -> None:
         self.known_objs = set()
         self.last_frame_objs = set()
         self.last_frame_obj2cls = {}
@@ -30,6 +30,8 @@ class Recorder:
         self.frame_dim = (width, height)
         self.human_event = False
         self.yolo_id2name = yolo_id2name
+        self.region = region
+        self.recording_base_dir = recording_base_dir
 
         self.fps = int(fps)
         self._3_sec_frame_count = int(fps*3)
@@ -55,6 +57,9 @@ class Recorder:
         self.saver_threads = []
 
     def update(self, frame, boxes):
+        if self.region:
+            self.initial_frame_check(frame, boxes)
+
         curr_objs = set()
         curr_obj2cls = {}
         contains_human = False
@@ -96,6 +101,31 @@ class Recorder:
                     self.start_regular_event(frame_info)
         
         self.finish_update(frame_info)
+
+    def initial_frame_check(self, frame, boxes):
+        """if this is the very first frame, compare with the last sight of the same region.
+        record new and left objects"""
+        if len(self._3_sec_frames):
+            return
+        
+        objs = set([int(box[5]) for box in boxes])
+        objs_before = set(self.region.objs)
+        time_str = datetime.datetime.now().strftime("%H:%M:%S")
+
+        with open(os.path.join(self.recording_dir, "log.txt"), "a+") as f:
+            f.write("{}: entered {}\n".format(time_str, self.region.name))
+            enter_str = "objs entered since last sight: "
+            left_str = "objs left since last sight: "
+            for cls_id in objs.difference(objs_before):
+                enter_str += self.yolo_id2name[cls_id] + ", "
+            
+            for cls_id in objs_before.difference(objs):
+                left_str += self.yolo_id2name[cls_id] + ", "
+            
+            f.write(enter_str + "\n" + left_str + "\n\n")
+        
+        cv2.imwrite(os.path.join(self.recording_dir, "{}.jpg".format(time_str)), frame)
+
 
 
     def prepare(self, frame_info: Frame):
@@ -166,10 +196,9 @@ class Recorder:
         self._2_sec_frames_before_human = []
         self.objs_during_human.clear()
 
-        # print("before", frame_info.boxes)
+        # do box similarity with frame before human enters
         frame_info.boxes = flicker_remover.update_human(self._2_sec_boxes_before_human[0], frame_info.boxes)
         frame_info.curr_objs, frame_info.curr_obj2cls, _ = parse_box(frame_info.boxes)
-        # print("after", frame_info.boxes)
 
         for obj_id in frame_info.curr_objs.difference(self._2_sec_objs_before_human[0]):
             self.known_objs.add(obj_id)
@@ -236,7 +265,7 @@ class Recorder:
         writer.release()
 
     def destroy(self):
-        """dispatch all writers and do cleaning"""
+        """dispatch all writers and do cleaning, save its last memory of the scene"""
         for count_down, writer, obj_id in self.curr_videowriter:
             t = threading.Thread(target=self.dispatch_writer, args=((writer, self._3_sec_frames, 
                                                                      self._3_sec_objs, obj_id)))
@@ -246,6 +275,11 @@ class Recorder:
         for t in self.saver_threads:
             t.join()
 
+        for box in self._2_sec_boxes.pop():
+            self.region.objs.append(int(box[5]))
+        
+        cv2.imwrite(os.path.join(self.recording_dir, "{}.jpg".format(datetime.datetime.now().strftime("%H:%M:%S"))), self._3_sec_frames.pop())
+            
         self.remove_files()
         
     def remove_files(self):
@@ -257,13 +291,8 @@ class Recorder:
 
     def make_newdir(self):
         """create dir for storing recordings"""
-        recording_dir = os.path.join(os.getcwd(), 'recordings')
-        if not os.path.exists(recording_dir):
-            os.mkdir(recording_dir)
-
-        folder_names = os.listdir(os.path.join(os.getcwd(), 'recordings'))
-        names = [int(name) for name in folder_names if name.isnumeric()] or [-1]
-        last_number = max(names)
-        new_name = os.path.join(os.getcwd(), 'recordings', str(last_number + 1))
-        os.mkdir(new_name)
-        return new_name
+        if self.region:
+            if not os.path.exists(os.path.join(self.recording_base_dir, self.region.name)):
+                os.mkdir(os.path.join(self.recording_base_dir, self.region.name))
+            return os.path.join(self.recording_base_dir, self.region.name)
+        return self.recording_base_dir
