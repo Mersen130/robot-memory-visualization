@@ -22,10 +22,19 @@ def main():
 			name = line.strip()
 			id2name[index] = name
 
+	recording_dir = os.path.join(os.getcwd(), 'recordings')
+	if not os.path.exists(recording_dir):
+		os.mkdir(recording_dir)
+	folder_names = os.listdir(os.path.join(os.getcwd(), 'recordings'))
+	names = [int(name) for name in folder_names if name.isnumeric()] or [-1]
+	last_number = max(names)
+	recording_base_dir = os.path.join(os.getcwd(), 'recordings', str(last_number + 1))
+	os.mkdir(recording_base_dir)
+
 	width = 640
 	height = 480
 	camera = Camera(-1, width, height)
-	recorder = Recorder(camera.get_fps(), width, height, id2name)
+	recorder = Recorder(camera.get_fps(), width, height, id2name, recording_base_dir=recording_base_dir)
 	colours = np.random.rand(32, 3) #used only for display
 
 
@@ -61,7 +70,7 @@ def main():
 			break
 
 	if record_all:
-		writer = cv2.VideoWriter("recordings/recording.mp4", 
+		writer = cv2.VideoWriter(os.path.join(recording_base_dir, "recording.mp4"), 
 				cv2.VideoWriter_fourcc(*'MP4V'), camera.get_fps(), (width, height))
 		for frame in frames:
 			writer.write(frame)

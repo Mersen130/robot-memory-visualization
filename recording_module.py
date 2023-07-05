@@ -143,6 +143,9 @@ class Recorder:
             filename = "{} {} id:{} enter.mp4".format(datetime.datetime.now().strftime("%H:%M:%S"), 
                                                       self.yolo_id2name[frame_info.curr_obj2cls[obj_id]], obj_id)
             
+            if str(obj_id) + "enter" in self.id2filenames:
+                self.files_to_remove.append(self.id2filenames[str(obj_id) + "enter"])
+                continue
             self.id2filenames[str(obj_id) + "enter"] = filename
             self.create_writer(filename, self._3_sec_frame_count-1, obj_id)
         
@@ -150,6 +153,9 @@ class Recorder:
             filename = "{} {} id:{} left.mp4".format(datetime.datetime.now().strftime("%H:%M:%S"), 
                                                      self.yolo_id2name[self.last_frame_obj2cls[obj_id]], obj_id)
             
+            if str(obj_id) + "left" in self.id2filenames:
+                self.files_to_remove.append(self.id2filenames[str(obj_id) + "left"])
+                continue
             self.id2filenames[str(obj_id) + "left"] = filename
             self.create_writer(filename, 1, obj_id)
     
@@ -275,10 +281,11 @@ class Recorder:
         for t in self.saver_threads:
             t.join()
 
-        for box in self._2_sec_boxes.pop():
-            self.region.objs.append(int(box[5]))
+        if self.region:
+            for box in self._2_sec_boxes.pop():
+                self.region.objs.append(int(box[5]))
         
-        cv2.imwrite(os.path.join(self.recording_dir, "{}.jpg".format(datetime.datetime.now().strftime("%H:%M:%S"))), self._3_sec_frames.pop())
+            cv2.imwrite(os.path.join(self.recording_dir, "{}.jpg".format(datetime.datetime.now().strftime("%H:%M:%S"))), self._3_sec_frames.pop())
             
         self.remove_files()
         

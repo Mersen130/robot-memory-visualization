@@ -53,7 +53,6 @@ def main():
 		colours = np.random.rand(32, 3) #used only for display
 		mot_tracker = Sort()
 
-		frames = []
 		frame_count = camera.get_fps() * 5
 		# simulate robot stay at a region for 5 seconds, then move to next region
 		while frame_count > 0:
@@ -83,14 +82,7 @@ def main():
 
 			cv2.imshow("image", frame)
 
-			frames.append(frame)
 			if cv2.waitKey(1) & 0xFF == ord('q'):
-				if record_all:
-					writer = cv2.VideoWriter(os.path.join(os.getcwd(), "recordings/{}/recording.mp4".format(regions[region_no])), 
-							cv2.VideoWriter_fourcc(*'MP4V'), camera.get_fps(), (width, height))
-					for frame in frames:
-						writer.write(frame)
-					writer.release()
 
 				cv2.destroyAllWindows() 
 				camera.destroy()
