@@ -46,7 +46,7 @@ class Recorder:
         self._2_sec_objs_before_human = None
         self._2_sec_obj2cls_before_human = None
         self._2_sec_boxes_before_human = None
-        self._2_sec_frames_after_human = []
+        self._frames_after_human = []
         self.objs_during_human = []
         self.human_frames = deque()
 
@@ -93,6 +93,10 @@ class Recorder:
             if contains_human and not self._human_event_countdown:
                 # human enters scene and previous human job finishes
                 self.start_human_event(frame_info)
+            elif contains_human and self._human_event_countdown:
+                # human enters scene and previous human job unfinished
+                self._human_event_countdown = self.fps - 1
+                self.stop_human_event(frame_info)
             else:
                 if self._human_event_countdown:
                     self._human_event_countdown -= 1
@@ -187,18 +191,18 @@ class Recorder:
     def stop_human_event(self, frame_info: Frame):
         self.human_event = False
         if self._human_event_countdown:
-            self._2_sec_frames_after_human.append(frame_info.frame)
+            self._frames_after_human.append(frame_info.frame)
             return
         
         frames = deque()
         frames.extend(self._2_sec_frames_before_human)
         frames.extend(self.human_frames)
-        frames.extend(self._2_sec_frames_after_human)
+        frames.extend(self._frames_after_human)
 
         objs = deque()
         objs.extend(self._2_sec_objs_before_human)
         objs.extend(self.objs_during_human)
-        self._2_sec_frames_after_human = []
+        self._frames_after_human = []
         self._2_sec_frames_before_human = []
         self.objs_during_human.clear()
 
