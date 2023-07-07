@@ -30,6 +30,7 @@ class Recorder:
         self.frame_dim = (width, height)
         self.human_event = False
         self.yolo_id2name = yolo_id2name
+        self.yolo_name2id = {v: k for k, v in yolo_id2name.items()}
         self.region = region
         self.recording_base_dir = recording_base_dir
 
@@ -43,9 +44,9 @@ class Recorder:
         self._2_sec_boxes = deque(maxlen=2*self.fps)
 
         self._2_sec_frames_before_human = []
-        self._2_sec_objs_before_human = None
-        self._2_sec_obj2cls_before_human = None
-        self._2_sec_boxes_before_human = None
+        self._2_sec_objs_before_human = []
+        self._2_sec_obj2cls_before_human = []
+        self._2_sec_boxes_before_human = []
         self._frames_after_human = []
         self.objs_during_human = []
         self.human_frames = deque()
@@ -111,22 +112,35 @@ class Recorder:
         record new and left objects"""
         if len(self._3_sec_frames):
             return
-        
         objs = set([int(box[5]) for box in boxes])
         objs_before = set(self.region.objs)
+        if not objs_before and os.path.exists(os.path.join(self.recording_dir, "log.txt")):
+            with open(os.path.join(self.recording_dir, "log.txt"), "r") as f:
+                lines = f.readlines()
+                if lines:
+                    line = lines[-2].strip()
+                    line = line.split(": ")[1].split(", ")
+                    print(line)
+                    objs_before = set([self.yolo_name2id[obj] for obj in line])
+                    print(objs_before)
+            
         time_str = datetime.datetime.now().strftime("%H:%M:%S")
 
         with open(os.path.join(self.recording_dir, "log.txt"), "a+") as f:
             f.write("{}: entered {}\n".format(time_str, self.region.name))
+            exist_str = "objs currently in the region: "
             enter_str = "objs entered since last sight: "
             left_str = "objs left since last sight: "
+            for cls_id in objs:
+                exist_str += self.yolo_id2name[cls_id] + ", "
+
             for cls_id in objs.difference(objs_before):
                 enter_str += self.yolo_id2name[cls_id] + ", "
             
             for cls_id in objs_before.difference(objs):
                 left_str += self.yolo_id2name[cls_id] + ", "
             
-            f.write(enter_str + "\n" + left_str + "\n\n")
+            f.write(exist_str[:-2] + "\n" + enter_str[:-2] + "\n" + left_str[:-2] + "\n\n")
         
         cv2.imwrite(os.path.join(self.recording_dir, "{}.jpg".format(time_str)), frame)
 
@@ -148,6 +162,7 @@ class Recorder:
                                                       self.yolo_id2name[frame_info.curr_obj2cls[obj_id]], obj_id)
             
             if str(obj_id) + "enter" in self.id2filenames:
+                # if same object id enters twice, it is a flicker, remove all relevant recordings
                 self.files_to_remove.append(self.id2filenames[str(obj_id) + "enter"])
                 continue
             self.id2filenames[str(obj_id) + "enter"] = filename
@@ -286,8 +301,18 @@ class Recorder:
             t.join()
 
         if self.region:
-            for box in self._2_sec_boxes.pop():
-                self.region.objs.append(int(box[5]))
+            objs = set([int(box[5]) for box in self._2_sec_boxes.pop()])
+            self.region.objs = objs
+
+            time_str = datetime.datetime.now().strftime("%H:%M:%S")
+
+            with open(os.path.join(self.recording_dir, "log.txt"), "a+") as f:
+                f.write("{}: left {}\n".format(time_str, self.region.name))
+                exist_str = "objs currently in the region: "
+                for cls_id in objs:
+                    exist_str += self.yolo_id2name[cls_id] + ", "
+                
+                f.write(exist_str[:-2] + "\n\n")
         
             cv2.imwrite(os.path.join(self.recording_dir, "{}.jpg".format(datetime.datetime.now().strftime("%H:%M:%S"))), self._3_sec_frames.pop())
             

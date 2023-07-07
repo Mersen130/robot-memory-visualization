@@ -7,7 +7,7 @@ from Sort import *
 
 
 def main():
-	record_all = True
+	record_all = False
 
 	__location__ = os.path.realpath(
 		os.path.join(os.getcwd(), os.path.dirname(__file__)))
@@ -65,7 +65,8 @@ def main():
 
 		cv2.imshow("image", frame)
 
-		frames.append(frame)
+		if record_all:
+			frames.append(frame)
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
 
