@@ -118,10 +118,10 @@ class Recorder:
             with open(os.path.join(self.recording_dir, "log.txt"), "r") as f:
                 lines = f.readlines()
                 if lines:
-                    line = lines[-2].strip()
+                    line = lines[-2][:-1]
                     line = line.split(": ")[1].split(", ")
                     print(line)
-                    objs_before = set([self.yolo_name2id[obj] for obj in line])
+                    objs_before = set([self.yolo_name2id[obj] for obj in line if obj])
                     print(objs_before)
             
         time_str = datetime.datetime.now().strftime("%H:%M:%S")
@@ -131,12 +131,19 @@ class Recorder:
             exist_str = "objs currently in the region: "
             enter_str = "objs entered since last sight: "
             left_str = "objs left since last sight: "
+            
+            if not objs:
+                exist_str += ", "
             for cls_id in objs:
                 exist_str += self.yolo_id2name[cls_id] + ", "
 
+            if not objs.difference(objs_before):
+                enter_str += ", "
             for cls_id in objs.difference(objs_before):
                 enter_str += self.yolo_id2name[cls_id] + ", "
             
+            if not objs_before.difference(objs):
+                left_str += ", "
             for cls_id in objs_before.difference(objs):
                 left_str += self.yolo_id2name[cls_id] + ", "
             
@@ -309,6 +316,9 @@ class Recorder:
             with open(os.path.join(self.recording_dir, "log.txt"), "a+") as f:
                 f.write("{}: left {}\n".format(time_str, self.region.name))
                 exist_str = "objs currently in the region: "
+                
+                if not objs:
+                    exist_str += ", "
                 for cls_id in objs:
                     exist_str += self.yolo_id2name[cls_id] + ", "
                 
