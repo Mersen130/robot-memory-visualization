@@ -21,6 +21,7 @@ def main():
 		for index, line in enumerate(lines):
 			name = line.strip()
 			id2name[index] = name
+	name2id = {v: k for k, v in id2name.items()}
 
 	recording_dir = os.path.join(os.getcwd(), 'recordings')
 	if not os.path.exists(recording_dir):
@@ -34,7 +35,7 @@ def main():
 	width = 640
 	height = 480
 	camera = Camera(-1, width, height)
-	recorder = Recorder(camera.get_fps(), width, height, id2name, recording_base_dir=recording_base_dir)
+	recorder = Recorder(camera.get_fps(), width, height, id2name, name2id, recording_base_dir=recording_base_dir)
 	colours = np.random.rand(32, 3) #used only for display
 
 

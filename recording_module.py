@@ -4,6 +4,7 @@ import os
 import threading
 import datetime
 from flicker_remover import flicker_remover
+from instance_classifier import instance_classifier
 from utilities import parse_box
 
 CLASS_PERSON = 0
@@ -22,7 +23,7 @@ class Recorder:
     """
     Record a video when new object appears and left
     """
-    def __init__(self, fps, width, height, yolo_id2name, region=None, recording_base_dir="") -> None:
+    def __init__(self, fps, width, height, yolo_id2name, yolo_name2id, region=None, recording_base_dir="") -> None:
         self.known_objs = set()
         self.last_frame_objs = set()
         self.last_frame_obj2cls = {}
@@ -30,7 +31,7 @@ class Recorder:
         self.frame_dim = (width, height)
         self.human_event = False
         self.yolo_id2name = yolo_id2name
-        self.yolo_name2id = {v: k for k, v in yolo_id2name.items()}
+        self.yolo_name2id = yolo_name2id
         self.region = region
         self.recording_base_dir = recording_base_dir
 
@@ -58,19 +59,27 @@ class Recorder:
         self.saver_threads = []
 
     def update(self, frame, boxes):
-        if self.region:
-            self.initial_frame_check(frame, boxes)
 
         curr_objs = set()
         curr_obj2cls = {}
         contains_human = False
 
         for box in boxes:
+            if int(box[5]) == CLASS_PERSON:
+                contains_human = True
+
+        # print(self.human_event, self._human_event_countdown, contains_human)
+        if not self.human_event and self._human_event_countdown <= 1 and not contains_human:
+            # if not in human event, do instance segmentation
+            boxes, self.yolo_id2name, self.yolo_name2id = instance_classifier.update(frame, boxes)
+
+        if self.region:
+            self.initial_frame_check(frame, boxes)
+
+        for box in boxes:
             x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
             obj_id = int(box[4])
             cls_id = int(box[5])
-            if cls_id == CLASS_PERSON:
-                contains_human = True
         
             curr_objs.add(obj_id)
             curr_obj2cls[obj_id] = cls_id
@@ -87,16 +96,16 @@ class Recorder:
                 self.continue_human_event(frame_info)
             else:
                 # human left scene
-                self._human_event_countdown = self.fps - 1
+                self._human_event_countdown = 2 * self.fps - 1
                 self.stop_human_event(frame_info)
-            return
+            return boxes, self.yolo_id2name, self.yolo_name2id
         else:
             if contains_human and not self._human_event_countdown:
                 # human enters scene and previous human job finishes
                 self.start_human_event(frame_info)
             elif contains_human and self._human_event_countdown:
                 # human enters scene and previous human job unfinished
-                self._human_event_countdown = self.fps - 1
+                self._human_event_countdown = 2 * self.fps - 1
                 self.stop_human_event(frame_info)
             else:
                 if self._human_event_countdown:
@@ -106,6 +115,7 @@ class Recorder:
                     self.start_regular_event(frame_info)
         
         self.finish_update(frame_info)
+        return boxes, self.yolo_id2name, self.yolo_name2id
 
     def initial_frame_check(self, frame, boxes):
         """if this is the very first frame, compare with the last sight of the same region.

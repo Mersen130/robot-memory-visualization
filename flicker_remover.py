@@ -42,6 +42,7 @@ class Flicker_Remover:
         return boxes
     
     def update_human(self, boxes_before_human, boxes_after_human):
+        # compare boxes before and after human event
         objs_after, _, objs_after2box = parse_box(boxes_after_human)
         objs_before, _, objs_before2box = parse_box(boxes_before_human)
 
@@ -59,7 +60,6 @@ class Flicker_Remover:
             obj_id = int(boxes[i][4])
             if obj_id in self.flickered_objid_mapping:
                 boxes[i][4] = self.flickered_objid_mapping[obj_id][4]
-                boxes[i][5] = self.flickered_objid_mapping[obj_id][5]
     
     def get_similar_boxes(self, boxes, target):
         """find the box that's similar to target in boxes, they are potentially same object"""

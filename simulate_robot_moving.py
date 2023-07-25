@@ -6,6 +6,11 @@ from flicker_remover import flicker_remover
 from Sort import *
 import time
 
+REGIONS = ["region 1", "region 2"]
+WIDTH = 640
+HEIGHT = 480
+RECORD_ALL = True
+
 class Region:
 	objs: list
 	def __init__(self, name) -> None:
@@ -14,12 +19,10 @@ class Region:
 
 
 def main():
-	record_all = True
+	record_all = RECORD_ALL
 
 	__location__ = os.path.realpath(
 		os.path.join(os.getcwd(), os.path.dirname(__file__)))
-
-	model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # or yolov5n - yolov5x6, custom
 
 	id2name = {}
 	with open(os.path.join(__location__, 'yolo_classes.txt'), 'r') as file:
@@ -27,6 +30,7 @@ def main():
 		for index, line in enumerate(lines):
 			name = line.strip()
 			id2name[index] = name
+	name2id = {v: k for k, v in id2name.items()}
 
 	recording_dir = os.path.join(os.getcwd(), 'recordings')
 	if not os.path.exists(recording_dir):
@@ -37,11 +41,13 @@ def main():
 	recording_base_dir = os.path.join(os.getcwd(), 'recordings', str(last_number + 1))
 	os.mkdir(recording_base_dir)
 
-	width = 640
-	height = 480
+	model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # or yolov5n - yolov5x6, custom
+
+	width = WIDTH
+	height = HEIGHT
 	camera = Camera(-1, width, height)
 
-	regions = ["region 1", "region 2"]
+	regions = REGIONS
 	for i in range(len(regions)):
 		regions[i] = Region(regions[i])
 
@@ -49,11 +55,11 @@ def main():
 
 	while True:
 		region_no = region_no % len(regions)
-		recorder = Recorder(camera.get_fps(), width, height, id2name, regions[region_no], recording_base_dir)
+		recorder = Recorder(camera.get_fps(), width, height, id2name, name2id, regions[region_no], recording_base_dir)
 		colours = np.random.rand(32, 3) #used only for display
 		mot_tracker = Sort()
 
-		frame_count = camera.get_fps() * 5
+		frame_count = camera.get_fps() * 10
 		# simulate robot stay at a region for 5 seconds, then move to next region
 		while frame_count > 0:
 			frame_count -= 1
@@ -64,6 +70,7 @@ def main():
 
 			track_bbs_ids = mot_tracker.update(detections).tolist()
 			track_bbs_ids = flicker_remover.update(track_bbs_ids)
+			track_bbs_ids, id2name, name2id = recorder.update(frame, track_bbs_ids)
 
 			# print(results)
 
@@ -78,7 +85,6 @@ def main():
 				cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 				cv2.putText(frame, name, (x1, y1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 				
-			recorder.update(frame, track_bbs_ids)
 
 			cv2.imshow("image", frame)
 
@@ -90,7 +96,6 @@ def main():
 				exit(0)
 
 		recorder.destroy()
-
 		time.sleep(5)
 		region_no += 1
 
