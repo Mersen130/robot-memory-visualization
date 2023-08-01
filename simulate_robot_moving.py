@@ -85,7 +85,7 @@ def main():
 				cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 				cv2.putText(frame, name, (x1, y1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 				
-
+			cv2.putText(frame, regions[region_no].name, (0, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
 			cv2.imshow("image", frame)
 
 			if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -96,7 +96,7 @@ def main():
 				exit(0)
 
 		recorder.destroy()
-		time.sleep(5)
+		time.sleep(10)
 		region_no += 1
 
 if __name__ == "__main__":

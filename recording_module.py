@@ -49,6 +49,7 @@ class Recorder:
         self._2_sec_obj2cls_before_human = []
         self._2_sec_boxes_before_human = []
         self._frames_after_human = []
+        self._objs_after_human = []
         self.objs_during_human = []
         self.human_frames = deque()
 
@@ -224,6 +225,7 @@ class Recorder:
         self.human_event = False
         if self._human_event_countdown:
             self._frames_after_human.append(frame_info.frame)
+            self._objs_after_human.append(frame_info.curr_objs)
             return
         
         frames = deque()
@@ -234,6 +236,8 @@ class Recorder:
         objs = deque()
         objs.extend(self._2_sec_objs_before_human)
         objs.extend(self.objs_during_human)
+        objs.extend(self._objs_after_human)
+        self._objs_after_human = []
         self._frames_after_human = []
         self._2_sec_frames_before_human = []
         self.objs_during_human.clear()
@@ -297,6 +301,7 @@ class Recorder:
                     break
         
         if count < threshold:
+            print("cleaning", filename)
             return  # this recording is probably caused by a glitch
         
         writer = cv2.VideoWriter(
