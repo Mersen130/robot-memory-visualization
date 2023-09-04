@@ -17,7 +17,12 @@ pip install -r requirements_pip.txt
 
 # Set Up
 
-prepare a web cam
+prepare a web cam, and connect to the pc.
+
+If the program complains about the camera's id when initializing the camera module, you may need to change the camera's id to your system's actual id.
+```
+camera = Camera(`CHANGE THIS`, width, height)
+```
 
 
 # How to Run
